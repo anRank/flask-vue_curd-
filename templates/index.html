@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="../static/vue.js"></script>
+    <script src="../static/axios.min.js"></script>
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-row :gutter="24">
+        <el-col :span="10">
+            <el-input v-model="searchData" placeholder="请输入内容"></el-input>
+        </el-col>
+        <el-col :span="2">
+            <el-button type="primary" @click="handleSearch()">查询</el-button>
+        </el-col>
+        <el-col :span="10">
+            <el-input v-model="addData" placeholder="请输入内容"></el-input>
+        </el-col>
+        <el-col :span="2">
+            <el-button type="primary" @click="handleAdd">添加</el-button>
+        </el-col>
+    </el-row>
+
+    <br>
+
+    <template>
+        <el-table :data="tableData" border style="width: 100%">
+            <el-table-column prop="date" label="日期" width="200">
+            </el-table-column>
+
+            <el-table-column prop="mission" label="任务" width="600" >
+                <template slot-scope="{row, $index}">
+                    <span  v-if="editable[$index]">
+                        <el-input v-model="updateData" @blur="saveUpdate($index)"></el-input>
+                    </span>
+                    <span v-else>
+                        ${ tableData[$index].mission }
+                    </span>
+                </template>
+            </el-table-column>
+
+            <el-table-column prop="level" label="等级" width="200">
+                <template slot-scope="{row, $index}">
+                    <el-button type="text" @click="levelDown($index)">-</el-button>
+                    ${ tableData[$index].level }
+                    <el-button type="text" @click="levelUp($index)">+</el-button>
+                </template>
+
+            </el-table-column>
+
+            <el-table-column fixed="right" label="操作" width="200">
+                <template slot-scope="scope">
+                    <el-button type="primary" size="small" @click="handleUpdate(scope.$index, tableData)">编辑</el-button>
+                    <el-button type="primary" size="small" @click="handleDelete(scope.$index, tableData)">删除</el-button>
+                </template>
+            </el-table-column>
+        </el-table>
+    </template>
+
+</div>
+</body>
+<script>
+    var vm = new Vue({
+        el: '#app',
+        delimiters: ['${', '}'],
+        data: {
+            searchData: '',
+            addData: '',
+            updateData: '',
+            searchData: '',
+            getData: [],
+            tableData: [{
+                date: '2020-05-12',
+                mission: '学习',
+                level: "A",
+            }],
+            editable: [false,],
+            levelArr: ['S', 'A', 'B', 'C', 'D'],
+            searchResult: [],
+            tempData: [],
+        },
+        methods: {
+            handleSearch() {
+                if(this.searchData == '') {
+                    if (this.tempData != '') {
+                        this.tableData = this.tempData;
+                        this.tempData = [];
+                        this.searchResult = [];
+                    }
+                }
+                else {
+                    let search = this.searchData;
+                    for(let i=0;i<this.tableData.length;i++) {
+                        for(let j=0;j<search.length;j++) {
+                            if(this.tableData[i].mission.indexOf(search[j]) > -1) {
+                                this.searchResult.push(this.tableData[i]);
+                                break;
+                            }
+                        }
+                    }
+                    this.tempData = this.tableData;
+                    this.searchData = '';
+                    this.tableData = this.searchResult;
+                }
+            },
+
+            handleAdd() {
+                var tempData = this.addData;
+                this.addData = '';
+                var nowDate = new Date().format("yyyy-MM-dd");
+                var level = "S";
+                var newTable = { date: nowDate, mission: tempData, level: level, editIf: false};
+                this.tableData.push(newTable);
+                this.editable.push(false);
+
+                axios({
+                    url: '/submit',
+                    method: 'post',
+                    data: {"date": nowDate, "mission": tempData, "level": level}
+                }).then((res) => {
+                    console.log(res.config.data)
+                }).catch((err) => {
+                    console.log(err)
+                })
+            },
+
+            handleDelete(index, rows) {
+                let nowDate = this.tableData[index].date
+                let tempData = this.tableData[index].mission
+                let level = this.tableData[index].level
+                axios({
+                    url: '/deletedata',
+                    method: 'post',
+                    data: {"date": nowDate, "mission": tempData, "level": level}
+                }).then((res) => {
+                    console.log(res.config.data)
+                }).catch((err) => {
+                    console.log(err)
+                })
+                rows.splice(index, 1);
+            },
+
+            handleUpdate(index, rows) {
+                Vue.set(this.editable, index, true);
+
+            },
+
+            saveUpdate(index) {
+                let tempData = this.tableData[index].mission;
+                this.tableData[index].mission = this.updateData;
+                Vue.set(this.editable, index, false);
+
+                let upd = this.updateData;
+                this.updateData = '';
+                let nowDate = this.tableData[index].date
+                let level = this.tableData[index].level
+                axios({
+                    url: '/update',
+                    method: 'post',
+                    data: {"date": nowDate, "mission": tempData, "level": level, "new": upd}
+                }).then((res) => {
+                    console.log(res.config.data)
+                }).catch((err) => {
+                    console.log(err)
+                })
+                rows.splice(index, 1);
+            },
+
+            levelUp(index) {
+                let p;
+                for(let i=0;i<5;i++) {
+                    if(this.tableData[index].level == this.levelArr[i]) {
+                        p = i;
+                    }
+                }
+                if(p!=0){
+                    p--;
+                    this.tableData[index].level = this.levelArr[p];
+                }
+
+            },
+
+            levelDown(index) {
+                let p;
+                for(let i=0;i<5;i++) {
+                    if(this.tableData[index].level == this.levelArr[i]) {
+                        p = i;
+                    }
+                }
+                if(p!=4) {
+                    p++;
+                    this.tableData[index].level = this.levelArr[p];
+                }
+            },
+
+        },
+
+        created: function () {
+        axios({
+            url: '/readdata',
+            method: 'get'
+        }).then((res) => {
+            console.log(res)
+            let d = res.data
+            d = d.replace(/^\s*|\s*$/g,"");
+            this.getData = d.split(" ")
+            let t = []
+            for(let i=0;i<this.getData.length;i++) {
+                dic = {"date": this.getData[i], "mission": this.getData[i+1], "level": this.getData[i+2]}
+                t.push(dic)
+                this.tableData.push(dic)
+                i+=2;
+            }
+        }).catch((err) => {
+            console.log(err)
+        })
+        }
+    })
+
+    Date.prototype.format = function(fmt){
+        var o = {
+            "M+" : this.getMonth()+1,                 //月份
+            "d+" : this.getDate(),                    //日
+            "h+" : this.getHours(),                   //小时
+            "m+" : this.getMinutes(),                 //分
+            "s+" : this.getSeconds(),                 //秒
+            "q+" : Math.floor((this.getMonth()+3)/3), //季度
+            "S"  : this.getMilliseconds()             //毫秒
+        };
+
+        if(/(y+)/.test(fmt)){
+            fmt=fmt.replace(RegExp.$1, (this.getFullYear()+"").substr(4 - RegExp.$1.length));
+        }
+
+        for(var k in o){
+            if(new RegExp("("+ k +")").test(fmt)){
+                fmt = fmt.replace(
+                    RegExp.$1, (RegExp.$1.length==1) ? (o[k]) : (("00"+ o[k]).substr((""+ o[k]).length)));
+            }
+        }
+
+        return fmt;
+    }
+</script>
+</html>
